@@ -27,26 +27,15 @@ class TLDetector(object):
         self.pose = None
         self.waypoints_2d = None
         self.waypoint_tree = None
-
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        '''
-        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
-        helps you acquire an accurate ground truth data source for the traffic light
-        classifier by sending the current color state of all traffic lights in the
-        simulator. When testing on the vehicle, the color state will not be available. You'll need to
-        rely on the position of the light and the camera image to predict it.
-        '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        self.state = TrafficLight.UNKNOWN
+        self.last_state = TrafficLight.UNKNOWN
+        self.last_wp = -1
+        self.state_count = 0
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
         self.is_site = self.config['is_site']
         rospy.loginfo("Site: {}".format(self.is_site))
-
-        self.upcoming_traffic_light_pub = rospy.Publisher('/traffic_waypoint2', TrafficLightWithState, queue_size=1)
 
         self.bridge = CvBridge()
         # Depending on site or simulation it uses different classifier
@@ -57,10 +46,11 @@ class TLDetector(object):
         
         self.listener = tf.TransformListener()
 
-        self.state = TrafficLight.UNKNOWN
-        self.last_state = TrafficLight.UNKNOWN
-        self.last_wp = -1
-        self.state_count = 0
+        self.upcoming_traffic_light_pub = rospy.Publisher('/traffic_waypoint2', TrafficLightWithState, queue_size=1)
+        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         rospy.spin()
 
