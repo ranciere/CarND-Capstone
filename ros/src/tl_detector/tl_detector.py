@@ -7,6 +7,7 @@ from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
+from light_classification.tl_classifier_site import TLClassifierSite
 import tf
 import cv2
 import yaml
@@ -18,6 +19,7 @@ class TLDetector(object):
     def __init__(self):
         rospy.init_node('tl_detector')
 
+        self.cnt = 0
         self.pose = None
         self.waypoints = None
         self.camera_image = None
@@ -41,11 +43,18 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
+        self.is_site = self.config['is_site']
+        rospy.loginfo("Site: {}".format(self.is_site))
 
         self.upcoming_traffic_light_pub = rospy.Publisher('/traffic_waypoint2', TrafficLightWithState, queue_size=1)
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
+        # Depending on site or simulation it uses different classifier
+        if self.is_site:
+            self.light_classifier = TLClassifierSite()
+        else:
+            self.light_classifier = TLClassifier()
+        
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
@@ -118,8 +127,6 @@ class TLDetector(object):
         return closest_idx
 
     def get_light_state(self, light):
-            # for testing 
-        return light.state
 
         """Determines the current color of the traffic light
 
@@ -139,6 +146,7 @@ class TLDetector(object):
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
+    
     def process_traffic_lights(self):
 
         """Finds closest visible traffic light, if one exists, and determines its
@@ -155,6 +163,11 @@ class TLDetector(object):
 
         closest_light = None
         line_wp_idx = None
+        #~ cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        #~ fname = "/mnt/host/selfdriving/trafficlights/images/ref_{:0>5d}.jpg".format(self.cnt)
+        #~ self.cnt += 1
+        #~ print(fname)
+        #~ cv2.imwrite(fname, cv_image)
 
         
         light = None
