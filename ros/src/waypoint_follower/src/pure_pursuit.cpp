@@ -38,7 +38,7 @@ int main(int argc, char **argv)
 
 
   // set up ros
-  ros::init(argc, argv, "pure_pursuit");
+  ros::init(argc, argv, "pure_pursuit", ros::init_options::NoRosout);
 
   ros::NodeHandle nh;
   ros::NodeHandle private_nh("~");
