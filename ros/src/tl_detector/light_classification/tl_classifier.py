@@ -23,7 +23,7 @@ class TLClassifier(object):
 	#camera image is in RGB color, convert it to HSV to be able to use color info in one plane
 	img_hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
 	#cut off lower 1/3 of the image where traffic lights cannot be		
-	img_crop = img[0:400,0:800] 
+	img_crop = img_hsv[0:400,0:800] 
 	#create a binary mask for red color. note, that red is at the beginning and at the end of the H circle therefore 2 masks are needed
 	mask1r = cv2.inRange(img_hsv, (0,50,20), (5,255,255))
 	mask2r = cv2.inRange(img_hsv, (175,50,20), (180,255,255))
@@ -40,12 +40,12 @@ class TLClassifier(object):
 	num_pixels[2] = cv2.countNonZero(maskg)
 
 	#see which mask yields the highest number of matching pixels -get the index of it in the array
-	sort_col = np.flip(np.argsort(num_pixels))
+	sort_col = np.argsort(num_pixels)
 	
 	if(np.all(num_pixels == 0)): #if there are no red, yellow and green pixels in the image then assume we see no traffic lights so set traffic light status to unknown
 		color = TrafficLight.UNKNOWN
 	else: #if there are non-zero values the color corresponding to the highest value will be returned
-		color = self.colors[sort_col[0]]
+		color = self.colors[sort_col[2]]
 
        
 	return color
