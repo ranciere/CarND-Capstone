@@ -51,10 +51,10 @@ class TLDetector(object):
         self.bridge = CvBridge()
         # Depending on site or simulation it uses different classifier
         if self.is_site:
-			self.light_classifier = TLClassifierSite()
-		else:
-			self.light_classifier = TLClassifier()
-			
+            self.light_classifier = TLClassifierSite()
+        else:
+            self.light_classifier = TLClassifier()
+        
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
