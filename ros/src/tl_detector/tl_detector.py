@@ -2,7 +2,7 @@
 import rospy
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped, Pose
-from styx_msgs.msg import TrafficLightArray, TrafficLight
+from styx_msgs.msg import TrafficLightArray, TrafficLight, TrafficLightWithState
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -42,7 +42,7 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        self.upcoming_traffic_light_pub = rospy.Publisher('/traffic_waypoint2', TrafficLightWithState, queue_size=1)
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -62,7 +62,7 @@ class TLDetector(object):
         self.waypoints = waypoints
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
-            #rospy.loginfo( "Received {} base waypoint coordinates.".format( len(self.waypoints_2d)))            
+            rospy.loginfo( "Received {} base waypoint coordinates.".format( len(self.waypoints_2d)))            
             self.waypoint_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
@@ -93,9 +93,15 @@ class TLDetector(object):
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
+            tl_msg = TrafficLightWithState()
+            tl_msg.wpid = self.last_wp
+            tl_msg.state = state 
+            self.upcoming_traffic_light_pub.publish(tl_msg)
         else:
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+            tl_msg = TrafficLightWithState()
+            tl_msg.wpid = self.last_wp
+            tl_msg.state = state 
+            self.upcoming_traffic_light_pub.publish(tl_msg)
         self.state_count += 1
 
     def get_closest_waypoint(self, x, y):
@@ -143,6 +149,10 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+
+        if self.waypoint_tree is None:
+            return -1, TrafficLight.UNKNOWN
+
         closest_light = None
         line_wp_idx = None
 

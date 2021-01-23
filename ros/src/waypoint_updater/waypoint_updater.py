@@ -2,9 +2,10 @@
 
 import numpy as np
 import rospy
+import threading
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped
-from styx_msgs.msg import Lane, Waypoint
+from styx_msgs.msg import Lane, Waypoint, TrafficLight, TrafficLightWithState
 from scipy.spatial import KDTree
 import math
 
@@ -32,13 +33,15 @@ class WaypointUpdater(object):
 
         self.base_lane = None
         self.pose = None
+        self.tl_state_lock = threading.Lock()
         self.stopline_wp_idx = -1
+        self.tl_state = TrafficLight.UNKNOWN
         self.waypoints_2d = None
         self.waypoint_tree = None
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/traffic_waypoint2', TrafficLightWithState, self.traffic_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
@@ -50,7 +53,7 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(30)
+        rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             if self.pose and self.waypoint_tree:
                 # Get closest waypoint
@@ -125,8 +128,11 @@ class WaypointUpdater(object):
             self.waypoint_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        self.stopline_wp_idx = msg.data
+        self.tl_state_lock.acquire()
+        # If you use the following members, don't forget to acquire the Lock first, to ensure consistency in a multithreaded environment. 
+        self.tl_state = msg.state
+        self.stopline_wp_idx = msg.wpid
+        self.tl_state_lock.release()
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
