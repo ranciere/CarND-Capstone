@@ -91,16 +91,16 @@ class TLDetector(object):
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
+            light_wp = light_wp if (state == TrafficLight.RED) or (state == TrafficLight.YELLOW) else -1
             self.last_wp = light_wp
             tl_msg = TrafficLightWithState()
             tl_msg.wpid = self.last_wp
-            tl_msg.state = state 
+            tl_msg.state = self.last_state 
             self.upcoming_traffic_light_pub.publish(tl_msg)
         else:
             tl_msg = TrafficLightWithState()
             tl_msg.wpid = self.last_wp
-            tl_msg.state = state 
+            tl_msg.state = self.last_state 
             self.upcoming_traffic_light_pub.publish(tl_msg)
         self.state_count += 1
 
