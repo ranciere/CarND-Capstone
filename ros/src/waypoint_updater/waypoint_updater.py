@@ -105,10 +105,10 @@ class WaypointUpdater(object):
             stop_idx = max(cur_stopline_wp_idx - closest_idx - 2, 0)   # Two waypoints back from line so front of car stops at line
             total_dist = self.distance(base_waypoints, 0, farthest_idx - closest_idx - 1)
 
-            # Calculate braking distance with the permitted maximum deceleration before a yellow light (s = v_square/2a)
-            braking_dist = (self.current_vel * self.current_vel) / ( 2 * self.decel_limit_yellow_light );  
-            rospy.loginfo( "Decel_limit_yellow_light: {} m/s2 Braking distance: {} Total dist: {}".format( self.decel_limit_yellow_light, braking_dist, total_dist ))  
-            if braking_dist > total_dist:
+            # Calculate breaking distance with the permitted maximum deceleration before a yellow light (s = v_square/2a)
+            breaking_dist = (self.current_vel * self.current_vel) / ( 2 * self.decel_limit_yellow_light );  
+            rospy.loginfo( "Decel_limit_yellow_light: {} m/s2 Breaking distance: {} Total dist: {}".format( self.decel_limit_yellow_light, breaking_dist, total_dist ))  
+            if breaking_dist > total_dist:
                 self.dont_stop_wpid = cur_stopline_wp_idx
 
         if cur_stopline_wp_idx == -1 or (cur_stopline_wp_idx >= farthest_idx) or (self.dont_stop_wpid == cur_stopline_wp_idx):
