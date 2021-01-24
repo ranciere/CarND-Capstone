@@ -125,7 +125,6 @@ class WaypointUpdater(object):
     def decelerate_waypoints(self, waypoints, closest_idx, cur_stopline_wp_idx):
         temp = []
         stop_idx = max(cur_stopline_wp_idx - closest_idx - 2, 0)   # Two waypoints back from line so front of car stops at line
-        total_dist = self.distance(waypoints, 0, stop_idx)
         for i, wp in enumerate(waypoints):
             p = Waypoint()
             p.pose = wp.pose 
@@ -155,7 +154,7 @@ class WaypointUpdater(object):
         self.tl_state = msg.state
         self.stopline_wp_idx = msg.wpid
 
-        # When we left the traffic light where there was a yellow light and we decided not to stop, we reset the 'dont_stop_wpid' variable  
+        # When we leave the traffic light where there was a yellow light and we decided not to stop, we reset the 'dont_stop_wpid' variable  
         if self.stopline_wp_idx != self.dont_stop_wpid:
             self.dont_stop_wpid = -1
 
