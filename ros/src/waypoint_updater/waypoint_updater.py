@@ -2,9 +2,10 @@
 
 import numpy as np
 import rospy
+import threading
 from std_msgs.msg import Int32
-from geometry_msgs.msg import PoseStamped
-from styx_msgs.msg import Lane, Waypoint
+from geometry_msgs.msg import PoseStamped, TwistStamped
+from styx_msgs.msg import Lane, Waypoint, TrafficLight, TrafficLightWithState
 from scipy.spatial import KDTree
 import math
 
@@ -32,13 +33,19 @@ class WaypointUpdater(object):
 
         self.base_lane = None
         self.pose = None
+        self.tl_state_lock = threading.Lock()
         self.stopline_wp_idx = -1
+        self.dont_stop_wpid = -1
+        self.tl_state = TrafficLight.UNKNOWN
         self.waypoints_2d = None
         self.waypoint_tree = None
+        self.current_vel = None
+        self.decel_limit_yellow_light = rospy.get_param('~decel_limit_yellow_light', 0.1)
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/traffic_waypoint2', TrafficLightWithState, self.traffic_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
@@ -58,6 +65,9 @@ class WaypointUpdater(object):
                 self.publish_waypoints(closest_waypoint_idx)
             rate.sleep()
         
+    def velocity_cb(self, msg):
+        self.current_vel = msg.twist.linear.x
+
     def get_closest_waypoint_idx(self):
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
@@ -85,10 +95,26 @@ class WaypointUpdater(object):
         farthest_idx = closest_idx + LOOKAHEAD_WPS
         base_waypoints = self.base_lane.waypoints[closest_idx:farthest_idx]
 
-        if self.stopline_wp_idx == -1 or (self.stopline_wp_idx >= farthest_idx):
+        # get the latest stop_wp_idx/state pair (thread-safe)
+        self.tl_state_lock.acquire()
+        cur_tl_state = self.tl_state
+        cur_stopline_wp_idx = self.stopline_wp_idx
+        self.tl_state_lock.release()
+
+        if cur_tl_state == TrafficLight.YELLOW:
+            stop_idx = max(cur_stopline_wp_idx - closest_idx - 2, 0)   # Two waypoints back from line so front of car stops at line
+            total_dist = self.distance(base_waypoints, 0, farthest_idx - closest_idx - 1)
+
+            # Calculate breaking distance with the permitted maximum deceleration before a yellow light (s = v_square/2a)
+            breaking_dist = (self.current_vel * self.current_vel) / ( 2 * self.decel_limit_yellow_light );  
+            rospy.loginfo( "Decel_limit_yellow_light: {} m/s2 Breaking distance: {} Total dist: {}".format( self.decel_limit_yellow_light, breaking_dist, total_dist ))  
+            if breaking_dist > total_dist:
+                self.dont_stop_wpid = cur_stopline_wp_idx
+
+        if cur_stopline_wp_idx == -1 or (cur_stopline_wp_idx >= farthest_idx) or (self.dont_stop_wpid == cur_stopline_wp_idx):
             lane.waypoints = base_waypoints
         else:
-            lane.waypoints = self.decelerate_waypoints(base_waypoints, closest_idx)
+            lane.waypoints = self.decelerate_waypoints(base_waypoints, closest_idx, cur_stopline_wp_idx )
 
         return lane
 
@@ -96,12 +122,12 @@ class WaypointUpdater(object):
         final_lane = self.generate_lane()
         self.final_waypoints_pub.publish(final_lane)
 
-    def decelerate_waypoints(self, waypoints, closest_idx):
+    def decelerate_waypoints(self, waypoints, closest_idx, cur_stopline_wp_idx):
         temp = []
+        stop_idx = max(cur_stopline_wp_idx - closest_idx - 2, 0)   # Two waypoints back from line so front of car stops at line
         for i, wp in enumerate(waypoints):
             p = Waypoint()
             p.pose = wp.pose 
-            stop_idx = max(self.stopline_wp_idx - closest_idx - 2, 0)   # Two waypoints back from line so front of car stops at line
             dist = self.distance(waypoints, i, stop_idx)
             vel = math.sqrt(2 * MAX_DECEL * dist)
             if vel < 1.:
@@ -113,11 +139,9 @@ class WaypointUpdater(object):
         return temp
 
     def pose_cb(self, msg):
-        # TODO
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-        # TODO
         self.base_lane = waypoints
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
@@ -125,8 +149,16 @@ class WaypointUpdater(object):
             self.waypoint_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        self.stopline_wp_idx = msg.data
+        self.tl_state_lock.acquire()
+        # If you use the following members, don't forget to acquire the Lock first, to ensure consistency in a multithreaded environment. 
+        self.tl_state = msg.state
+        self.stopline_wp_idx = msg.wpid
+
+        # When we leave the traffic light where there was a yellow light and we decided not to stop, we reset the 'dont_stop_wpid' variable  
+        if self.stopline_wp_idx != self.dont_stop_wpid:
+            self.dont_stop_wpid = -1
+
+        self.tl_state_lock.release()
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
